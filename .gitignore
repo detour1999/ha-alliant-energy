@@ -1,0 +1,62 @@
+# Environment and secrets
+.env
+*.pickle
+secrets.yaml
+ip_bans.yaml
+known_devices.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+.env/
+.python-version
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.coverage
+coverage.xml
+htmlcov/
+
+# Home Assistant specific
+home-assistant.log
+home-assistant_v2.db
+.storage
+.cloud
+.google.token
+.uuid
+
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+coverage.xml
+nosetests.xml
+unittest.xml
