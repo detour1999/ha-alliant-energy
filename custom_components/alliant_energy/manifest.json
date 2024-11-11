@@ -1,10 +1,14 @@
 {
   "domain": "alliant_energy",
   "name": "Alliant Energy",
-  "codeowners": ["@detour1999"],
+  "codeowners": [
+    "@detour1999"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/detour1999/ha-alliant-energy",
   "iot_class": "cloud_polling",
-  "requirements": ["aiohttp"],
-  "version": "0.1.0"
+  "requirements": [
+    "aiohttp"
+  ],
+  "version": "0.1.1"
 }
