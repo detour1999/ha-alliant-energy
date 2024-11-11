@@ -5,15 +5,22 @@ on:
     types: [closed]
     branches:
       - main
+  workflow_dispatch: # Allows manual triggering of workflow
+
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true
+    # Modified condition to allow both PR merges and manual triggers
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Bump version and push tag
         id: tag_version
@@ -25,12 +32,24 @@ jobs:
 
       - name: Update manifest.json
         run: |
+          if [ ! -f "custom_components/alliant_energy/manifest.json" ]; then
+            echo "Error: manifest.json not found"
+            exit 1
+          fi
+
           version="${{ steps.tag_version.outputs.new_tag }}"
           version="${version#v}"  # Remove 'v' prefix
           manifest_path="custom_components/alliant_energy/manifest.json"
-          jq --arg version "$version" '.version = $version' $manifest_path > temp.json && mv temp.json $manifest_path
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+
+          if ! jq --arg version "$version" '.version = $version' $manifest_path > temp.json; then
+            echo "Error: Failed to update manifest.json"
+            exit 1
+          fi
+
+          mv temp.json $manifest_path
+
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add $manifest_path
           git commit -m "chore: bump manifest version to $version"
           git push
