@@ -1,0 +1,1001 @@
+Repository Documentation
+This document provides a comprehensive overview of the repository's structure and contents.
+The first section, titled 'Directory/File Tree', displays the repository's hierarchy in a tree format.
+In this section, directories and files are listed using tree branches to indicate their structure and relationships.
+Following the tree representation, the 'File Content' section details the contents of each file in the repository.
+Each file's content is introduced with a '[File Begins]' marker followed by the file's relative path,
+and the content is displayed verbatim. The end of each file's content is marked with a '[File Ends]' marker.
+This format ensures a clear and orderly presentation of both the structure and the detailed contents of the repository.
+
+Directory/File Tree Begins -->
+
+ha-alliant-energy-backup/
+├── LICENSE
+├── README.md
+├── custom_components
+│   └── alliant_energy
+│       ├── __init__.py
+│       ├── client.py
+│       ├── config_flow.py
+│       ├── const.py
+│       ├── manifest.json
+│       └── sensor.py
+├── hacs.json
+├── info.md
+└── tests
+    ├── __init__.py
+    ├── test_alliant_cli.py
+    └── test_requirements.txt
+
+<-- Directory/File Tree Ends
+
+File Content Begin -->
+[File Begins] LICENSE
+MIT License
+
+Copyright (c) 2024
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+[File Ends] LICENSE
+
+[File Begins] README.md
+# Alliant Energy Home Assistant Integration
+
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+
+This Home Assistant integration gets energy usage and cost data from Alliant Energy.
+
+## Features
+
+- Current billing period usage and cost
+- Forecasted usage and cost
+- Historical usage data
+- Cost per kWh calculations (including customer charge adjustments)
+- Billing period tracking
+- Automatic cost estimation when Alliant data isn't available
+
+## Installation
+
+### HACS Installation
+
+1. Open HACS in Home Assistant
+2. Click on "Integrations"
+3. Click the three dots in the top right
+4. Select "Custom repositories"
+5. Add this repository URL and select "Integration" as the category
+6. Click "Add"
+7. Find "Alliant Energy" in the list and click "Download"
+8. Restart Home Assistant
+
+### Manual Installation
+
+1. Copy the `custom_components/alliant_energy` directory to your Home Assistant's `custom_components` directory
+2. Restart Home Assistant
+
+## Configuration
+
+1. Go to Settings -> Devices & Services -> Add Integration
+2. Search for "Alliant Energy"
+3. Enter your Alliant Energy credentials
+
+## Sensors
+
+| Sensor                                 | Description                                        |
+| -------------------------------------- | -------------------------------------------------- |
+| Current Bill Electric Usage To Date    | Current billing period usage in kWh                |
+| Current Bill Electric Forecasted Usage | Projected usage for current billing period         |
+| Typical Monthly Electric Usage         | Average monthly usage                              |
+| Current Bill Electric Cost To Date     | Current billing period cost                        |
+| Current Bill Electric Forecasted Cost  | Projected cost for current billing period          |
+| Typical Monthly Electric Cost          | Average monthly cost                               |
+| Electric Cost per kWh                  | Calculated energy rate (excluding customer charge) |
+| Current Bill Electric Start Date       | Start date of current billing period               |
+| Current Bill Electric End Date         | End date of current billing period                 |
+
+## Cost Calculation Details
+
+The integration calculates costs using:
+
+- Energy rate (per kWh) derived from previous billing period
+- Daily customer charge of $0.4932
+- Actual Alliant Energy data when available
+- Estimated costs when Alliant data isn't available
+
+## Debugging
+
+Set up logging for troubleshooting:
+
+```yaml
+logger:
+  default: info
+  logs:
+    custom_components.alliant_energy: debug
+```
+
+## Contributing
+
+Feel free to submit issues and pull requests.
+
+## License
+
+MIT License - see LICENSE file
+
+## Testing
+
+### Command Line Testing
+
+For quick testing of the API client:
+
+1. Install test requirements:
+
+```bash
+pip install -r tests/requirements_test.txt
+```
+
+2. Run the CLI test script:
+
+```bash
+python tests/test_alliant_cli.py
+```
+
+You can also create a `.env` file with your credentials:
+
+```
+ALLIANT_USERNAME=your_username
+ALLIANT_PASSWORD=your_password
+```
+
+### Running Unit Tests
+
+To run the unit tests:
+
+```bash
+pytest tests/
+```
+
+[File Ends] README.md
+
+    [File Begins] custom_components/alliant_energy/__init__.py
+    """The Alliant Energy integration."""
+    from __future__ import annotations
+    
+    import logging
+    
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.const import Platform
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.storage import Store
+    
+    from .const import DOMAIN, STORAGE_VERSION, STORAGE_KEY
+    
+    _LOGGER = logging.getLogger(__name__)
+    
+    PLATFORMS: list[Platform] = [Platform.SENSOR]
+    
+    async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+        """Set up Alliant Energy from a config entry."""
+        store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
+    
+        hass.data.setdefault(DOMAIN, {})
+        hass.data[DOMAIN][entry.entry_id] = {
+            "config": entry.data,
+            "store": store,
+            "auth_data": await store.async_load() or {}
+        }
+    
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    
+        return True
+    
+    async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+        """Unload a config entry."""
+        if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+            hass.data[DOMAIN].pop(entry.entry_id)
+    
+        return unload_ok
+
+    [File Ends] custom_components/alliant_energy/__init__.py
+
+    [File Begins] custom_components/alliant_energy/client.py
+    """Alliant Energy API Client."""
+    import logging
+    from datetime import datetime, date, timedelta
+    from typing import Optional
+    import json
+    import aiohttp
+    import time
+    
+    _LOGGER = logging.getLogger(__name__)
+    
+    class AlliantEnergyData:
+        """Class to hold the energy data."""
+        def __init__(self):
+            self.usage_to_date: float = None
+            self.forecasted_usage: float = None
+            self.typical_usage: float = None
+            self.cost_to_date: float = None
+            self.forecasted_cost: float = None
+            self.typical_cost: float = None
+            self.start_date: datetime = None
+            self.end_date: datetime = None
+            self.last_api_update: datetime = None
+            self.last_meter_read: datetime = None
+            self.cost_per_kwh: float = None
+            self.customer_charge: float = 0.4932  # Daily customer charge
+            self.is_cost_estimated: bool = False
+    
+        def calculate_cost(self, kwh: float, days: float) -> float:
+            """Calculate cost including customer charge."""
+            if self.cost_per_kwh is None or kwh is None or days is None:
+                return None
+            return (kwh * self.cost_per_kwh) + (days * self.customer_charge)
+    
+    class AlliantEnergyAuthError(Exception):
+        """Exception for authentication errors."""
+        pass
+    
+    class AlliantEnergyClient:
+        """Client to handle Alliant Energy API interaction."""
+    
+        BASE_URL = "https://alliant-svc.smartcmobile.com"
+    
+        def __init__(self, username: str, password: str, store: Optional["Store"] = None):
+            self._username = username
+            self._password = password
+            self._store = store
+            self._token: Optional[str] = None
+            self._refresh_token: Optional[str] = None
+            self._token_expires_at: Optional[float] = None
+            self._account_number: Optional[str] = None
+            self._premise_number: Optional[str] = None
+            self._meter_number: Optional[str] = None
+            self._session: Optional[aiohttp.ClientSession] = None
+            self._uuid: Optional[str] = None
+    
+        def _get_base_headers(self) -> dict:
+            """Get base headers used in all requests."""
+            return {
+                "accept": "application/json, text/plain, */*",
+                "accept-language": "en-US,en;q=0.9",
+                "dnt": "1",
+                "origin": "https://myaccount.alliantenergy.com",
+                "priority": "u=1, i",
+                "pt": "1",
+                "referer": "https://myaccount.alliantenergy.com/",
+                "sec-ch-ua": '"Not?A_Brand";v="99", "Chromium";v="130"',
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": '"macOS"',
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site",
+                "uid": "2",
+                "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+            }
+    
+        async def _load_cached_auth(self) -> bool:
+            """Load cached authentication data."""
+            if not self._store:
+                return False
+    
+            auth_data = await self._store.async_load()
+            if not auth_data:
+                return False
+    
+            now = time.time()
+            if now >= auth_data.get("expires_at", 0) - 60:
+                _LOGGER.debug("Cached token expired")
+                return False
+    
+            self._token = auth_data.get("token")
+            self._refresh_token = auth_data.get("refresh_token")
+            self._token_expires_at = auth_data.get("expires_at")
+            self._uuid = auth_data.get("uuid")
+            self._account_number = auth_data.get("account_number")
+            self._premise_number = auth_data.get("premise_number")
+            self._meter_number = auth_data.get("meter_number")
+    
+            _LOGGER.debug("Loaded cached authentication data")
+            return bool(self._token and self._meter_number)
+    
+        async def _save_auth_data(self):
+            """Save authentication data to cache."""
+            if not self._store:
+                return
+    
+            auth_data = {
+                "token": self._token,
+                "refresh_token": self._refresh_token,
+                "expires_at": self._token_expires_at,
+                "uuid": self._uuid,
+                "account_number": self._account_number,
+                "premise_number": self._premise_number,
+                "meter_number": self._meter_number,
+            }
+    
+            await self._store.async_save(auth_data)
+            _LOGGER.debug("Saved authentication data to cache")
+    
+        async def _get_token(self, use_refresh_token: bool = False) -> str:
+            """Get authentication token."""
+            auth_url = f"{self.BASE_URL}/UsermanagementAPI/api/1/Login/auth"
+    
+            payload = {
+                "username": self._username,
+                "password": self._password,
+                "guestToken": "",
+                "customattributes": {
+                    "ip": "",
+                    "client": "Web",
+                    "version": "10_15_7",
+                    "deviceId": "||Chrome||130||Mac OS X||10_15_7||",
+                    "deviceName": "Chrome",
+                    "deviceType": 0,
+                    "os": "Mac OS X"
+                }
+            }
+    
+            headers = {
+                **self._get_base_headers(),
+                "Content-Type": "application/json",
+                "st": "PL",
+                "uid": "1"
+            }
+    
+            _LOGGER.debug("Authenticating with Alliant Energy...")
+            async with self._session.post(auth_url, json=payload, headers=headers) as response:
+                if response.status != 200:
+                    raise AlliantEnergyAuthError("Failed to authenticate")
+    
+                data = await response.json()
+                if data["status"]["type"] != "success":
+                    raise AlliantEnergyAuthError(f"Authentication failed: {data['status']['message']}")
+    
+                self._token = data["data"]["accessToken"]
+                self._refresh_token = data["data"]["refreshToken"]
+                self._token_expires_at = time.time() + (data["data"]["expiresIn"] * 60)
+                self._uuid = data["data"]["user"]["uuid"]
+    
+                await self._get_account_details()
+                await self._save_auth_data()
+    
+                return self._token
+    
+        async def _ensure_token(self):
+            """Ensure we have a valid token."""
+            if not self._token:
+                if not await self._load_cached_auth():
+                    await self._get_token(use_refresh_token=False)
+            elif time.time() >= self._token_expires_at - 60:  # Refresh 1 minute before expiration
+                try:
+                    await self._get_token(use_refresh_token=True)
+                except AlliantEnergyAuthError:
+                    await self._get_token(use_refresh_token=False)
+    
+        async def _get_account_details(self):
+            """Get account and premise numbers."""
+            url = f"{self.BASE_URL}/Services/api/1/Addresses/User/{self._uuid}"
+    
+            headers = {
+                **self._get_base_headers(),
+                "Authorization": f"Bearer {self._token}"
+            }
+    
+            async with self._session.get(url, headers=headers) as response:
+                if response.status != 200:
+                    raise AlliantEnergyAuthError("Failed to get account details")
+    
+                data = await response.json()
+                if not data["data"]:
+                    raise AlliantEnergyAuthError("No account found")
+    
+                account = data["data"][0]
+                self._account_number = account["accountNumber"]
+                self._premise_number = account["premiseNumber"]
+    
+                await self._get_meter_details()
+    
+        async def _get_meter_details(self):
+            """Get meter number."""
+            url = f"{self.BASE_URL}/Services/api/1/Usages/GetMeterAndPremise"
+    
+            headers = {
+                **self._get_base_headers(),
+                "Authorization": f"Bearer {self._token}",
+                "Content-Type": "application/json"
+            }
+    
+            payload = {
+                "accountNumber": self._account_number,
+                "premiseNumber": self._premise_number
+            }
+    
+            async with self._session.post(url, json=payload, headers=headers) as response:
+                if response.status != 200:
+                    raise AlliantEnergyAuthError("Failed to get meter details")
+    
+                data = await response.json()
+                if not data["data"]:
+                    raise AlliantEnergyAuthError("No meter found")
+    
+                self._meter_number = data["data"][0]["meterNumber"]
+    
+        async def async_get_data(self) -> AlliantEnergyData:
+            """Get the energy data."""
+            if not self._session:
+                self._session = aiohttp.ClientSession()
+    
+            await self._ensure_token()
+    
+            today = datetime.now().date()
+            first_of_month = today.replace(day=1)
+            last_of_month = date(today.year, today.month + 1, 1) if today.month < 12 else date(today.year + 1, 1, 1)
+    
+            data = AlliantEnergyData()
+            data.last_api_update = datetime.now()
+    
+            # Get historical data first
+            historical_url = f"{self.BASE_URL}/UsageAPI/api/V1/Electric"
+            historical_params = {
+                "AccountNumber": f"{self._premise_number}-{self._account_number}",
+                "MeterNumber": self._meter_number,
+                "From": today.replace(year=today.year - 1).strftime("%Y-%m-%d"),
+                "To": last_of_month.strftime("%Y-%m-%d"),
+                "Uom": "kWh",
+                "Periodicity": "MO"
+            }
+    
+            headers = {
+                **self._get_base_headers(),
+                "Authorization": f"Bearer {self._token}"
+            }
+    
+            async with self._session.get(historical_url, params=historical_params, headers=headers) as response:
+                if response.status == 200:
+                    historical = (await response.json())["Result"]["electricUsages"]
+                    if historical:
+                        # Sort by reading date for reliability
+                        sorted_readings = sorted(
+                            historical,
+                            key=lambda x: datetime.fromisoformat(x["readingFrom"].replace("Z", "+00:00"))
+                        )
+    
+                        # Calculate cost per kWh from most recent complete period
+                        if sorted_readings:
+                            latest_reading = sorted_readings[-1]
+                            period_start = datetime.fromisoformat(latest_reading["readingFrom"].replace("Z", "+00:00"))
+                            period_end = datetime.fromisoformat(latest_reading["readingTo"].replace("Z", "+00:00"))
+                            days_in_period = (period_end - period_start).days
+                            total_cost = float(latest_reading["amount"])
+                            total_usage = float(latest_reading["consumption"])
+    
+                            # Subtract out customer charge
+                            customer_charge_total = days_in_period * data.customer_charge
+                            energy_cost = total_cost - customer_charge_total
+    
+                            if total_usage > 0:
+                                data.cost_per_kwh = energy_cost / total_usage
+                                _LOGGER.debug(
+                                    "Calculated cost per kWh from last period: $%.4f "
+                                    "(total cost: $%.2f - customer charge: $%.2f for %d days = $%.2f energy cost / %.1f kWh)",
+                                    data.cost_per_kwh,
+                                    total_cost,
+                                    data.customer_charge,
+                                    days_in_period,
+                                    energy_cost,
+                                    total_usage
+                                )
+    
+                        # Calculate average period length for billing period projection
+                        period_lengths = []
+                        for reading in sorted_readings:
+                            start = datetime.fromisoformat(reading["readingFrom"].replace("Z", "+00:00"))
+                            end = datetime.fromisoformat(reading["readingTo"].replace("Z", "+00:00"))
+                            period_lengths.append((end - start).days)
+    
+                        avg_period_length = round(sum(period_lengths) / len(period_lengths))
+    
+                        # Get last completed billing period
+                        last_period = sorted_readings[-1]
+                        last_period_end = datetime.fromisoformat(last_period["readingTo"].replace("Z", "+00:00"))
+    
+                        # Calculate current billing period
+                        data.start_date = last_period_end.replace(tzinfo=None)
+                        data.end_date = data.start_date + timedelta(days=avg_period_length)
+    
+                        # Set last meter read
+                        data.last_meter_read = datetime.fromisoformat(
+                            last_period["readingTo"].replace("Z", "+00:00")
+                        )
+    
+                elif response.status == 401:
+                    _LOGGER.error("Authentication failed for historical data. Token may have expired.")
+                    await self._get_token()
+                    return await self.async_get_data()
+    
+            # Get projected data
+            projected_url = f"{self.BASE_URL}/UsageAPI/api/V1/ProjectedElectric"
+            projected_params = {
+                "AccountNumber": f"{self._premise_number}-{self._account_number}",
+                "MeterNumber": self._meter_number,
+                "StartDate": first_of_month.strftime("%Y-%m-%d"),
+                "EndDate": last_of_month.strftime("%Y-%m-%d"),
+                "Type": "0"
+            }
+    
+            async with self._session.get(projected_url, params=projected_params, headers=headers) as response:
+                if response.status == 200:
+                    projected = (await response.json())["Result"]["projectedElectric"]
+                    try:
+                        data.usage_to_date = float(projected["soFarThisMonthProjectedConsumption"])
+                    except (ValueError, TypeError):
+                        data.usage_to_date = None
+    
+                    try:
+                        data.forecasted_usage = float(projected["projectedConsumption"])
+                    except (ValueError, TypeError):
+                        data.forecasted_usage = None
+    
+                    try:
+                        data.typical_usage = float(projected["averageThisYearConsumption"])
+                    except (ValueError, TypeError):
+                        data.typical_usage = None
+    
+                    try:
+                        api_cost = float(projected["soFarThisMonthProjectedAmount"])
+                        if api_cost > 0:
+                            data.cost_to_date = api_cost
+                        elif data.cost_per_kwh and data.usage_to_date:
+                            days_so_far = (datetime.now().replace(tzinfo=None) - data.start_date).days
+                            data.cost_to_date = data.calculate_cost(data.usage_to_date, days_so_far)
+                            data.is_cost_estimated = True
+                    except (ValueError, TypeError):
+                        if data.cost_per_kwh and data.usage_to_date:
+                            days_so_far = (datetime.now().replace(tzinfo=None) - data.start_date).days
+                            data.cost_to_date = data.calculate_cost(data.usage_to_date, days_so_far)
+                            data.is_cost_estimated = True
+    
+                    try:
+                        api_cost = float(projected["projectedAmount"])
+                        if api_cost > 0:
+                            data.forecasted_cost = api_cost
+                        elif data.cost_per_kwh and data.forecasted_usage:
+                            period_days = (data.end_date - data.start_date).days
+                            data.forecasted_cost = data.calculate_cost(data.forecasted_usage, period_days)
+                            data.is_cost_estimated = True
+                    except (ValueError, TypeError):
+                        if data.cost_per_kwh and data.forecasted_usage:
+                            period_days = (data.end_date - data.start_date).days
+                            data.forecasted_cost = data.calculate_cost(data.forecasted_usage, period_days)
+                            data.is_cost_estimated = True
+    
+                    try:
+                        data.typical_cost = float(projected["averageThisYearAmount"])
+                    except (ValueError, TypeError):
+                        data.typical_cost = None
+    
+                elif response.status == 401:
+                    _LOGGER.error("Authentication failed for projected data. Token may have expired.")
+                else:
+                    _LOGGER.error("Failed to get projected data: %s", response.status)
+    
+            return data
+    
+        async def async_close(self):
+            """Close the session."""
+            if self._session:
+                await self._session.close()
+                self._session = None
+    
+        async def __aenter__(self):
+            """Async enter."""
+            return self
+    
+        async def __aexit__(self, exc_type, exc_val, exc_tb):
+            """Async exit."""
+            await self.async_close()
+
+    [File Ends] custom_components/alliant_energy/client.py
+
+    [File Begins] custom_components/alliant_energy/config_flow.py
+    """Config flow for Alliant Energy integration."""
+    from __future__ import annotations
+    
+    import logging
+    from typing import Any
+    
+    import voluptuous as vol
+    
+    from homeassistant import config_entries
+    from homeassistant.core import HomeAssistant
+    from homeassistant.data_entry_flow import FlowResult
+    from homeassistant.exceptions import HomeAssistantError
+    
+    from .client import AlliantEnergyClient, AlliantEnergyAuthError
+    from .const import DOMAIN, CONF_USERNAME, CONF_PASSWORD
+    
+    _LOGGER = logging.getLogger(__name__)
+    
+    STEP_USER_DATA_SCHEMA = vol.Schema(
+        {
+            vol.Required(CONF_USERNAME): str,
+            vol.Required(CONF_PASSWORD): str,
+        }
+    )
+    
+    async def validate_input(hass: HomeAssistant, data: dict[str, Any]) -> None:
+        """Validate the user input allows us to connect."""
+    
+        async with AlliantEnergyClient(
+            username=data[CONF_USERNAME],
+            password=data[CONF_PASSWORD],
+        ) as client:
+            await client.async_get_data()
+    
+    class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+        """Handle a config flow for Alliant Energy."""
+    
+        VERSION = 1
+    
+        async def async_step_user(
+            self, user_input: dict[str, Any] | None = None
+        ) -> FlowResult:
+            """Handle the initial step."""
+            errors = {}
+    
+            if user_input is not None:
+                try:
+                    await validate_input(self.hass, user_input)
+                except AlliantEnergyAuthError:
+                    errors["base"] = "invalid_auth"
+                except Exception:  # pylint: disable=broad-except
+                    _LOGGER.exception("Unexpected exception")
+                    errors["base"] = "unknown"
+                else:
+                    return self.async_create_entry(
+                        title=f"Alliant Energy ({user_input[CONF_USERNAME]})",
+                        data=user_input,
+                    )
+    
+            return self.async_show_form(
+                step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
+            )
+
+    [File Ends] custom_components/alliant_energy/config_flow.py
+
+    [File Begins] custom_components/alliant_energy/const.py
+    """Constants for the Alliant Energy integration."""
+    from dataclasses import dataclass
+    from typing import Callable, Any
+    
+    from homeassistant.components.sensor import (
+        SensorDeviceClass,
+        SensorEntityDescription,
+        SensorStateClass,
+    )
+    from homeassistant.const import (
+        UnitOfEnergy,
+        EntityCategory,
+    )
+    
+    DOMAIN = "alliant_energy"
+    CONF_USERNAME = "username"
+    CONF_PASSWORD = "password"
+    
+    # Storage constants
+    STORAGE_VERSION = 1
+    STORAGE_KEY = f"{DOMAIN}_auth_store"
+    
+    # Update interval (in seconds) - 1 hour
+    UPDATE_INTERVAL = 3600
+    
+    @dataclass
+    class AlliantEntityDescription(SensorEntityDescription):
+        """Class describing Alliant Energy sensor entities."""
+        value_fn: Callable[[Any], Any] = None
+    
+    ELEC_SENSORS = (
+        AlliantEntityDescription(
+            key="elec_usage_to_date",
+            name="Current Bill Electric Usage To Date",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=1,
+            value_fn=lambda data: data.usage_to_date,
+        ),
+        AlliantEntityDescription(
+            key="elec_forecasted_usage",
+            name="Current Bill Electric Forecasted Usage",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=1,
+            value_fn=lambda data: data.forecasted_usage,
+        ),
+        AlliantEntityDescription(
+            key="elec_typical_usage",
+            name="Typical Monthly Electric Usage",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=1,
+            value_fn=lambda data: data.typical_usage,
+        ),
+        AlliantEntityDescription(
+            key="elec_cost_to_date",
+            name="Current Bill Electric Cost To Date",
+            device_class=SensorDeviceClass.MONETARY,
+            native_unit_of_measurement="USD",
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=2,
+            value_fn=lambda data: data.cost_to_date,
+        ),
+        AlliantEntityDescription(
+            key="elec_forecasted_cost",
+            name="Current Bill Electric Forecasted Cost",
+            device_class=SensorDeviceClass.MONETARY,
+            native_unit_of_measurement="USD",
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=2,
+            value_fn=lambda data: data.forecasted_cost,
+        ),
+        AlliantEntityDescription(
+            key="elec_typical_cost",
+            name="Typical Monthly Electric Cost",
+            device_class=SensorDeviceClass.MONETARY,
+            native_unit_of_measurement="USD",
+            state_class=SensorStateClass.TOTAL,
+            suggested_display_precision=2,
+            value_fn=lambda data: data.typical_cost,
+        ),
+        AlliantEntityDescription(
+            key="elec_cost_per_kwh",
+            name="Electric Cost per kWh",
+            device_class=SensorDeviceClass.MONETARY,
+            native_unit_of_measurement="USD/kWh",
+            state_class=SensorStateClass.MEASUREMENT,
+            suggested_display_precision=4,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=lambda data: data.cost_per_kwh,
+        ),
+        AlliantEntityDescription(
+            key="elec_start_date",
+            name="Current Bill Electric Start Date",
+            device_class=SensorDeviceClass.DATE,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False,
+            value_fn=lambda data: data.start_date,
+        ),
+        AlliantEntityDescription(
+            key="elec_end_date",
+            name="Current Bill Electric End Date",
+            device_class=SensorDeviceClass.DATE,
+            entity_category=EntityCategory.DIAGNOSTIC,
+            entity_registry_enabled_default=False,
+            value_fn=lambda data: data.end_date,
+        ),
+    )
+
+    [File Ends] custom_components/alliant_energy/const.py
+
+    [File Begins] custom_components/alliant_energy/manifest.json
+    {
+      "domain": "alliant_energy",
+      "name": "Alliant Energy",
+      "codeowners": ["@detour1999"],
+      "config_flow": true,
+      "documentation": "https://github.com/detour1999/ha-alliant-energy",
+      "iot_class": "cloud_polling",
+      "requirements": ["aiohttp"],
+      "version": "0.1.0"
+    }
+
+    [File Ends] custom_components/alliant_energy/manifest.json
+
+    [File Begins] custom_components/alliant_energy/sensor.py
+    """Support for Alliant Energy sensors."""
+    from __future__ import annotations
+    
+    from datetime import timedelta
+    import logging
+    from typing import Any
+    
+    from homeassistant.components.sensor import SensorEntity
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.entity_platform import AddEntitiesCallback
+    from homeassistant.helpers.update_coordinator import (
+        CoordinatorEntity,
+        DataUpdateCoordinator,
+    )
+    from homeassistant.util.dt import as_local
+    
+    from .const import DOMAIN, ELEC_SENSORS, UPDATE_INTERVAL
+    from .client import AlliantEnergyClient, AlliantEnergyData
+    
+    _LOGGER = logging.getLogger(__name__)
+    
+    async def async_setup_entry(
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        async_add_entities: AddEntitiesCallback,
+    ) -> None:
+        """Set up Alliant Energy sensors based on a config entry."""
+        data = hass.data[DOMAIN][entry.entry_id]
+        store = data["store"]
+    
+        client = AlliantEnergyClient(
+            username=entry.data["username"],
+            password=entry.data["password"],
+            store=store,
+        )
+    
+        async def async_update_data() -> AlliantEnergyData:
+            """Fetch data from API endpoint."""
+            return await client.async_get_data()
+    
+        coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_method=async_update_data,
+            update_interval=timedelta(seconds=UPDATE_INTERVAL),
+        )
+    
+        # Fetch initial data so we have data when entities subscribe
+        await coordinator.async_config_entry_first_refresh()
+    
+        entities = [
+            AlliantEnergySensor(
+                coordinator=coordinator,
+                entry_id=entry.entry_id,
+                description=description,
+            )
+            for description in ELEC_SENSORS
+        ]
+    
+        async_add_entities(entities)
+    
+    class AlliantEnergySensor(CoordinatorEntity, SensorEntity):
+        """Representation of an Alliant Energy sensor."""
+    
+        def __init__(
+            self,
+            coordinator: DataUpdateCoordinator,
+            entry_id: str,
+            description: AlliantEntityDescription,
+        ) -> None:
+            """Initialize the sensor."""
+            super().__init__(coordinator)
+    
+            self.entity_description = description
+            self._attr_unique_id = f"{entry_id}_{description.key}"
+            self._attr_device_info = {
+                "identifiers": {(DOMAIN, entry_id)},
+                "name": "Alliant Energy",
+                "manufacturer": "Alliant Energy",
+                "model": "Usage Monitor",
+            }
+    
+        @property
+        def native_value(self) -> Any:
+            """Return the state of the sensor."""
+            return self.entity_description.value_fn(self.coordinator.data)
+    
+        @property
+        def extra_state_attributes(self) -> dict[str, Any]:
+            """Return additional state attributes."""
+            attributes = {}
+    
+            # Add last update times if available
+            if self.coordinator.data.last_api_update:
+                attributes["last_api_update"] = as_local(self.coordinator.data.last_api_update).isoformat()
+    
+            if self.coordinator.data.last_meter_read:
+                attributes["last_meter_read"] = as_local(self.coordinator.data.last_meter_read).isoformat()
+    
+            # Add billing period dates if available
+            if self.coordinator.data.start_date:
+                attributes["billing_period_start"] = as_local(self.coordinator.data.start_date).isoformat()
+    
+            if self.coordinator.data.end_date:
+                attributes["billing_period_end"] = as_local(self.coordinator.data.end_date).isoformat()
+    
+            # For cost sensors, add estimated flag if applicable
+            if self.entity_description.key in ["elec_cost_to_date", "elec_forecasted_cost"]:
+                attributes["is_estimated"] = self.coordinator.data.is_cost_estimated
+    
+            # For cost per kWh sensor, add calculation period and customer charge
+            if self.entity_description.key == "elec_cost_per_kwh":
+                if self.coordinator.data.last_meter_read:
+                    three_months_ago = self.coordinator.data.last_meter_read - timedelta(days=90)
+                    attributes["calculation_period_start"] = as_local(three_months_ago).isoformat()
+                    attributes["calculation_period_end"] = as_local(self.coordinator.data.last_meter_read).isoformat()
+                attributes["customer_charge_per_day"] = self.coordinator.data.customer_charge
+    
+            return attributes
+
+    [File Ends] custom_components/alliant_energy/sensor.py
+
+[File Begins] hacs.json
+{
+  "name": "Alliant Energy",
+  "render_readme": true,
+  "domain": "alliant_energy",
+  "documentation": "https://github.com/detour1999/ha-alliant-energy",
+  "issue_tracker": "https://github.com/detour1999/ha-alliant-energy/issues",
+  "dependencies": ["aiohttp"],
+  "iot_class": "Cloud Polling",
+  "homeassistant": "2024.1.0"
+}
+
+[File Ends] hacs.json
+
+[File Begins] info.md
+# Alliant Energy Integration
+
+This integration allows you to monitor your Alliant Energy usage and costs in Home Assistant.
+
+## Features
+
+- Current billing period usage and cost
+- Forecasted usage and cost
+- Historical usage data
+- Cost per kWh calculations (including customer charge adjustments)
+- Billing period tracking
+- Automatic cost estimation when Alliant data isn't available
+
+## Installation
+
+1. Install via HACS by adding this repository
+2. Restart Home Assistant
+3. Go to Settings -> Devices & Services -> Add Integration
+4. Search for "Alliant Energy"
+5. Enter your Alliant Energy credentials
+
+## Available Sensors
+
+- Current Bill Electric Usage To Date
+- Current Bill Electric Forecasted Usage
+- Typical Monthly Electric Usage
+- Current Bill Electric Cost To Date
+- Current Bill Electric Forecasted Cost
+- Typical Monthly Electric Cost
+- Electric Cost per kWh
+- Current Bill Electric Start Date
+- Current Bill Electric End Date
+
+[File Ends] info.md
+
+  [File Begins] tests/__init__.py
+
+  [File Ends] tests/__init__.py
+
+  [File Begins] tests/test_alliant_cli.py
+
+  [File Ends] tests/test_alliant_cli.py
+
+  [File Begins] tests/test_requirements.txt
+
+  [File Ends] tests/test_requirements.txt
+
+
+<-- File Content Ends
+
