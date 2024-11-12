@@ -1,6 +1,18 @@
 # Alliant Energy Home Assistant Integration
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/custom-components/hacs)
+[![GitHub Release][releases-shield]][releases]
+[![GitHub Activity][commits-shield]][commits]
+[![License][license-shield]](LICENSE)
+[![Project Maintenance][maintenance-shield]][user_profile]
+
+[commits-shield]: https://img.shields.io/github/commit-activity/y/detour1999/ha-alliant-energy.svg
+[commits]: https://github.com/detour1999/ha-alliant-energy/commits/main
+[license-shield]: https://img.shields.io/github/license/detour1999/ha-alliant-energy.svg
+[maintenance-shield]: https://img.shields.io/badge/maintainer-%40detour1999-blue.svg
+[releases-shield]: https://img.shields.io/github/release/detour1999/ha-alliant-energy.svg
+[releases]: https://github.com/detour1999/ha-alliant-energy/releases
+[user_profile]: https://github.com/detour1999
 
 This Home Assistant integration gets energy usage and cost data from Alliant Energy.
 
@@ -71,13 +83,17 @@ logger:
     custom_components.alliant_energy: debug
 ```
 
+## Support
+
+Having issues? Report them in the [Issue Tracker](https://github.com/detour1999/ha-alliant-energy/issues)
+
 ## Contributing
 
-Feel free to submit issues and pull requests.
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md)
 
 ## License
 
-MIT License - see LICENSE file
+This project is under the MIT License - see [LICENSE](LICENSE) file
 
 ## Testing
 
