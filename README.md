@@ -88,13 +88,17 @@ logger:
     custom_components.alliant_energy: debug
 ```
 
+## Support
+
+Having issues? Report them in the [Issue Tracker](https://github.com/detour1999/ha-alliant-energy/issues)
+
 ## Contributing
 
-Feel free to submit issues and pull requests.
+Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md)
 
 ## License
 
-MIT License - see LICENSE file
+This project is under the MIT License - see [LICENSE](LICENSE) file
 
 ## Testing
 
