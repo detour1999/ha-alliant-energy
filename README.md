@@ -4,12 +4,7 @@
 [![GitHub Release][releases-shield]][releases]
 [![GitHub Activity][commits-shield]][commits]
 [![License][license-shield]](LICENSE)
-
-[![pre-commit][pre-commit-shield]][pre-commit]
-[![Black][black-shield]][black]
-
 [![Project Maintenance][maintenance-shield]][user_profile]
-[![BuyMeCoffee][buymecoffeebadge]][buymecoffee]
 
 [commits-shield]: https://img.shields.io/github/commit-activity/y/detour1999/ha-alliant-energy.svg
 [commits]: https://github.com/detour1999/ha-alliant-energy/commits/main

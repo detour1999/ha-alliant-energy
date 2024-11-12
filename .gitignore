@@ -4,6 +4,7 @@
 secrets.yaml
 ip_bans.yaml
 known_devices.yaml
+output.txt
 
 # Python
 __pycache__/
