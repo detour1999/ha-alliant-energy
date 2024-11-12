@@ -1,9 +1,14 @@
+# tests/conftest.py
 """Global fixtures for alliant_energy integration."""
 import pytest
 from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
-from homeassistant.config_entries import MockConfigEntry
+from homeassistant.helpers.device_registry import DeviceEntryType
+# Change this import
+from homeassistant.helpers.entity_registry import RegistryEntryDisabler
+from homeassistant.testing_config import MockConfigEntry
+
 from custom_components.alliant_energy.const import DOMAIN
 from custom_components.alliant_energy.client import AlliantEnergyClient, AlliantEnergyData
 
