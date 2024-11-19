@@ -1,13 +1,9 @@
-# tests/conftest.py
 """Global fixtures for alliant_energy integration."""
-import pytest
-from unittest.mock import patch, AsyncMock
 from datetime import datetime, timedelta
+import pytest
+from unittest.mock import patch
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType
-# Change this import
-from homeassistant.helpers.entity_registry import RegistryEntryDisabler
-from homeassistant.testing_config import MockConfigEntry
+from homeassistant.config_entries import ConfigEntry
 
 from custom_components.alliant_energy.const import DOMAIN
 from custom_components.alliant_energy.client import AlliantEnergyClient, AlliantEnergyData
@@ -15,27 +11,26 @@ from custom_components.alliant_energy.client import AlliantEnergyClient, Alliant
 pytest_plugins = "pytest_homeassistant_custom_component"
 
 @pytest.fixture
-def mock_config_entry() -> MockConfigEntry:
+def mock_config_entry() -> ConfigEntry:
     """Create a mock config entry."""
-    return MockConfigEntry(
+    return ConfigEntry(
+        version=1,
+        minor_version=1,
         domain=DOMAIN,
+        title="Test",
         data={
             "username": "test_user",
             "password": "test_pass",
         },
-        entry_id="test",
+        source="user",
+        options={},
+        unique_id="test",
+        discovery_keys=["test_discovery_key"],
+        entry_id="test"
     )
 
 @pytest.fixture
-def mock_client():
-    """Create a mock client."""
-    with patch('aiohttp.ClientSession') as mock_session:
-        client = AlliantEnergyClient("test_user", "test_pass")
-        client._session = mock_session
-        yield client
-
-@pytest.fixture
-def mock_data():
+def mock_data() -> AlliantEnergyData:
     """Create mock energy data."""
     data = AlliantEnergyData()
     data.usage_to_date = 500.5

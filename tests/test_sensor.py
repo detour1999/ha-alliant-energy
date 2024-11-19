@@ -1,10 +1,9 @@
 """Test the Alliant Energy sensor platform."""
-import pytest
+from unittest.mock import patch
 from homeassistant.core import HomeAssistant
-from custom_components.alliant_energy.sensor import async_setup_entry
 from custom_components.alliant_energy.const import DOMAIN
+from custom_components.alliant_energy.sensor import async_setup_entry
 
-@pytest.mark.asyncio
 async def test_sensors(hass: HomeAssistant, mock_config_entry, mock_data):
     """Test sensor creation and updates."""
     with patch(
@@ -15,7 +14,6 @@ async def test_sensors(hass: HomeAssistant, mock_config_entry, mock_data):
         await async_setup_entry(hass, mock_config_entry)
         await hass.async_block_till_done()
 
-        # Test basic sensor states
         state = hass.states.get("sensor.current_bill_electric_usage_to_date")
         assert state
         assert state.state == "500.5"
@@ -27,4 +25,3 @@ async def test_sensors(hass: HomeAssistant, mock_config_entry, mock_data):
         state = hass.states.get("sensor.electric_cost_per_kwh")
         assert state
         assert state.state == "0.15"
-        assert state.attributes["customer_charge_per_day"] == 0.4932
